@@ -1,5 +1,0 @@
-*.log
-*.out
-*.lock
-*.sqlite
-.env
