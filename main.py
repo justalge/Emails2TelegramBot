@@ -15,9 +15,16 @@ from pony import orm
 
 
 load_dotenv()  # take environment variables from .env.
-logging.basicConfig(filename="e2t.log", filemode="w",
-                    format="%(asctime)s - %(message)s",
-                    level=logging.INFO)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+log_format = "%(levelname)s - %(asctime)s - %(message)s"
+formatter = logging.Formatter(fmt=log_format,
+                              datefmt="%Y-%m-%d - %H:%M:%S")
+fh = logging.FileHandler("e2t.log", "w")
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 
 db = orm.Database()
@@ -204,6 +211,37 @@ def send_file(file_name, file_bytes, chat_id):
     return response.status_code == 200
 
 
+def no_text_plain(now, mes_content_type):
+    logger.debug(f"Message time: {now}")
+    logger.debug(f"Not plain text content type: {mes_content_type}")
+    return "This message has only HTML content, can't render it"
+
+
+def text_plain(mes):
+    payload_bytes = mes.get_payload(decode=True)
+    if payload_bytes and payload_bytes.strip():
+        charset = mes.get_content_charset("utf-8")
+        return payload_bytes.decode(charset, "replace")
+    else:
+        return "No content"
+
+
+def handle_part(part, now):
+    content_type = part.get_content_type()
+    logger.debug("<--handle part--> - "
+                 + f"Message time: {now} - "
+                 + f"Content type: {content_type}")
+    trans_enc = part["Content-Transfer-Encoding"]
+    filename = part.get_filename()
+    return content_type, trans_enc, filename
+
+
+def file_bytes(part, fname):
+    fname = decode_bytes(fname)
+    bytes_data = get_bytes(part)
+    return (fname, bytes_data)
+
+
 def get_new_emails(imap_login, imap_password):
     ix = imap_login.index("@")
     EMAIL = imap_login
@@ -236,59 +274,39 @@ def get_new_emails(imap_login, imap_password):
                 # at the third:
                 message = email.message_from_bytes(response_part[1])
                 mes_content_type = message.get_content_type()
+                multipart = message.is_multipart()
                 typ, data = mail.store(i, "+FLAGS", "\\Seen")
                 now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                logger.info(f'{multipart} {now} {mes_content_type}')
 
                 mail_from = decode_bytes(message["from"])
                 mail_subject = decode_bytes(message["subject"])
 
                 files_attached = []
-                mail_content = ""
 
-                if message.is_multipart():
+                if multipart:
+                    no_pl_txt = True
                     for part in message.get_payload():
-                        content_type = part.get_content_type()
-                        transfer_encoding = part["Content-Transfer-Encoding"]
-                        logging.info("Message time:", now)
-                        logging.info("Content type:", content_type)
-                        filename = part.get_filename()
-                        if content_type == "text/plain":
-                            payload_bytes = part.get_payload(decode=True)
-                            if payload_bytes and payload_bytes.strip():
-                                charset = part.get_content_charset("utf-8")
-                                mail_content += payload_bytes\
-                                    .decode(charset, "replace")
-                            else:
-                                mail_content = "No content"
-                        elif content_type == "multipart/alternative":
+                        contype, transfenc, fname = handle_part(part, now)
+                        if contype == "text/plain":
+                            no_pl_txt = False
+                            mail_content = text_plain(part)
+                        elif contype == "multipart/alternative":
                             for p in part.get_payload():
-                                p_type = p.get_content_type()
-                                logging.info("Message time:", now)
-                                logging.info("Multipart content type:",
-                                             p_type)
-                                if p_type == "text/plain":
-                                    p_bytes = p.get_payload(decode=True)
-                                    charset = p.get_content_charset("utf-8")
-                                    mail_content += p_bytes\
-                                        .decode(charset, "replace")
-                        elif transfer_encoding == "base64" and filename:
-                            filename = decode_bytes(filename)
-                            bytes_data = get_bytes(part)
-                            files_attached += [(filename, bytes_data)]
+                                ctype, tenc, fn = handle_part(part, now)
+                                if ctype == "text/plain":
+                                    no_pl_txt = False
+                                    mail_content = text_plain(p)
+                                elif tenc == "base64" and fn:
+                                    files_attached += [file_bytes(p, fn)]
+                        elif transfenc == "base64" and fname:
+                            files_attached += [file_bytes(part, fname)]
+                    if no_pl_txt:
+                        mail_content = no_text_plain(now, mes_content_type)
                 elif mes_content_type == "text/plain":
-                    logging.info("Message time:", now)
-                    logging.info("Not multipart!")
-                    charset = message.get_charset()
-                    if not charset:
-                        charset = "utf-8"
-                    payload = message.get_payload(decode=True)
-                    if payload:
-                        mail_content = payload.decode(charset, "replace")
-                    else:
-                        mail_content = "No content"
+                    mail_content = text_plain(message)
                 else:
-                    logging.info("Message time:", now)
-                    logging.info("Content type xxx:", mes_content_type)
+                    mail_content = no_text_plain(now, mes_content_type)
 
                 result += [{"from": mail_from, "subj": mail_subject,
                             "content": mail_content,
@@ -345,7 +363,7 @@ def main():
                     res = get_new_emails(c.login, c.passwd)
                 except Exception:
                     fail_respond = MESSAGE_INVALID_CRED
-                    logging.exception("get_new_email failed :(")
+                    logger.exception("get_new_email failed :(")
 
             if fail_respond:
                 send_message(fail_respond, c.chat_id)
