@@ -76,7 +76,7 @@ def make_markdown(text):
     """Escape MD symbols and create MD hyperlinks"""
 
     MD_chars = r"_*[\]()~`>#+-=|{}.!"
-    URL_chars = r"-a-zA-Z0-9._~:/#[\]@!$&'()*+,;="  # all except "?"
+    URL_chars = r"-a-zA-Z0-9._~:/#@!$&'*+,;="  # all except "?"
 
     class LinksCounter:
         def __init__(self, links_dict):
@@ -295,7 +295,7 @@ def get_new_emails(imap_login, imap_password):
                             mail_content = text_plain(part)
                         elif part.is_multipart():
                             for p in part.get_payload():
-                                ctype, tenc, fn = handle_part(part, now)
+                                ctype, tenc, fn = handle_part(p, now)
                                 if ctype == "text/plain":
                                     no_pl_txt = False
                                     mail_content = text_plain(p)
