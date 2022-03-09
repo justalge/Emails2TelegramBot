@@ -291,7 +291,7 @@ def get_new_emails(imap_login, imap_password):
                         if contype == "text/plain":
                             no_pl_txt = False
                             mail_content = text_plain(part)
-                        elif contype == "multipart/alternative":
+                        elif part.is_multipart():
                             for p in part.get_payload():
                                 ctype, tenc, fn = handle_part(part, now)
                                 if ctype == "text/plain":
