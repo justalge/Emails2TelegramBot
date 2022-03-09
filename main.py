@@ -76,7 +76,7 @@ def make_markdown(text):
     """Escape MD symbols and create MD hyperlinks"""
 
     MD_chars = r"_*[\]()~`>#+-=|{}.!"
-    URL_chars = r"-a-zA-Z0-9@:%._\+~#&/="  # all except "?"
+    URL_chars = r"-a-zA-Z0-9._~:/#[\]@!$&'()*+,;="  # all except "?"
 
     class LinksCounter:
         def __init__(self, links_dict):
@@ -170,6 +170,7 @@ def get_last_update_id(updates):
 def send_message(text, chat_id):
     TEXT_LIMIT = 4096
 
+    logger.debug(text)
     text = make_markdown(text)
 
     # split message into blocks with size less then TEXT_LIMIT:
@@ -192,6 +193,7 @@ def send_message(text, chat_id):
 
     # send message for each block:
     for block in blocks:
+        logger.debug(block)
         url_encoded = urllib.parse.quote_plus(block)
         api_params = ["parse_mode=MarkdownV2",
                       "disable_web_page_preview=True"]
