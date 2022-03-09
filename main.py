@@ -15,8 +15,8 @@ from pony import orm
 
 
 load_dotenv()  # take environment variables from .env.
-logging.basicConfig(filename='e2t.log', filemode='w',
-                    format='%(asctime)s - %(message)s',
+logging.basicConfig(filename="e2t.log", filemode="w",
+                    format="%(asctime)s - %(message)s",
                     level=logging.INFO)
 
 
@@ -30,43 +30,47 @@ class Chats(db.Entity):
     passwd = orm.Optional(str)
 
 
-db.bind(provider='sqlite', filename='db.sqlite', create_db=True)
+db.bind(provider="sqlite", filename="db.sqlite", create_db=True)
 db.generate_mapping(create_tables=True)
 
 
-TOKEN = os.environ.get('API_TOKEN')
+TOKEN = os.environ.get("API_TOKEN")
 URL = "https://api.telegram.org/bot{}/".format(TOKEN)
 
 
-MESSAGE_START = '''Welcome to Emails2Telegram bot!
+MESSAGE_START = """Welcome to Emails2Telegram bot!
 It allows you to receive emails from your \
 mailbox right into this Telegram chat.
 
 To add a mailbox you want to receive messages from send /new
 
-To stop receive messages from current active mailbox send /stop'''
-MESSAGE_GET_EMAIL = 'Enter your email'
-MESSAGE_GET_PASSW = '''Enter your APPLICATION password
-(google how to generate application password for your mailbox)'''
-MESSAGE_OK = 'Done!'
-MESSAGE_STOP = '''Your mailbox is disconnected from the chatbot now.
+To stop receive messages from current active mailbox send /stop"""
+MESSAGE_GET_EMAIL = "Enter your email"
+MESSAGE_GET_PASSW = """Enter your APPLICATION password
+(google how to generate application password for your mailbox)"""
+MESSAGE_OK = "Done!"
+MESSAGE_STOP = """Your mailbox is disconnected from the chatbot now.
 
-To connect the chatbot to your mailbox again send /new'''
-MESSAGE_INVALID_CRED = '''You entered invalid credentials
+To connect the chatbot to your mailbox again send /new"""
+MESSAGE_INVALID_CRED = """You entered invalid credentials
 
 Make sure that you entered application password and not human one, \
 google how to generate application password for your mailbox.
 
-Try send /new and enter valid credentials again'''
-MESSAGE_CONTENT = '''From: {0}
+Try send /new and enter valid credentials again"""
+MESSAGE_CONTENT = """From: {0}
 Subject: {1}
 -------------------
 
-{2}'''
+{2}"""
 
 
 def make_markdown(text):
-    '''Escape MD symbols and create MD hyperlinks'''
+    """Escape MD symbols and create MD hyperlinks"""
+
+    MD_chars = r"_*[\]()~`>#+-=|{}.!"
+    URL_chars = r"-a-zA-Z0-9@:%._\+~#&/="  # all except "?"
+
     class LinksCounter:
         def __init__(self, links_dict):
             self.count = 0
@@ -82,23 +86,20 @@ def make_markdown(text):
                 self.ix += 1
                 nice_url = self.links_dict[self.ix][0]
                 # escape markdown characters from url:
-                nice_url = re.sub(r"([_*[\]()~`>#+-=|{}.!])",
-                                  r"\\\1", nice_url)
+                nice_url = re.sub(fr"([{MD_chars}])", r"\\\1", nice_url)
                 full_url = self.links_dict[self.ix][0]\
                     + self.links_dict[self.ix][1]
-                return f'[{nice_url}]({full_url})' if len(nice_url) < 60\
-                    else f'[longURL]({full_url})'
+                return f"[{nice_url}]({full_url})" if len(nice_url) < 60\
+                    else f"[longURL]({full_url})"
 
     # get rid of ugly links:
-    closing_br = r">)]}"
-    link_pattern = r"(http[^?{0}\s]+)(\?[^{1}\s]*)?".format(closing_br,
-                                                            closing_br)
+    link_pattern = fr"(http[s]?://[{URL_chars}]+)(\?[{URL_chars}]+)?"
     all_links = re.findall(link_pattern, text)
     linksCounter = LinksCounter(all_links)
     text = re.sub(link_pattern, linksCounter, text)
 
     # escape markdown characters:
-    text = re.sub(r"([_*[\]()~`>#+-=|{}.!])", r"\\\1", text)
+    text = re.sub(fr"([{MD_chars}])", r"\\\1", text)
 
     # insert nice links:
     linksCounter.link_to_num = False
@@ -108,16 +109,16 @@ def make_markdown(text):
 
 
 def decode_bytes(s):
-    '''Decode bytes to string'''
+    """Decode bytes to string"""
     encoded_tuple = email.header.decode_header(s)[0]
-    decoded_string = encoded_tuple[0].decode(encoded_tuple[1], 'replace') \
+    decoded_string = encoded_tuple[0].decode(encoded_tuple[1], "replace") \
         if encoded_tuple[1] else encoded_tuple[0]
     return decoded_string
 
 
 def get_bytes(part):
     bytes_encoded = part.get_payload()\
-        .encode('utf-8')
+        .encode("utf-8")
     bytes_decoded = base64.decodebytes(bytes_encoded)
     return bytes_decoded
 
@@ -160,12 +161,12 @@ def get_last_update_id(updates):
 
 
 def send_message(text, chat_id):
-    TEXT_LIMIT = 2000
+    TEXT_LIMIT = 4096
 
     text = make_markdown(text)
 
     # split message into blocks with size less then TEXT_LIMIT:
-    ixes = [(m.start(0), m.end(0)) for m in re.finditer(r'\s+', text)]
+    ixes = [(m.start(0), m.end(0)) for m in re.finditer(r"\s+", text)]
     blocks, total_size = [], 0
     for i in range(len(ixes) - 1):
         s = ixes[i][0] - total_size
@@ -185,10 +186,10 @@ def send_message(text, chat_id):
     # send message for each block:
     for block in blocks:
         url_encoded = urllib.parse.quote_plus(block)
-        api_params = ['parse_mode=MarkdownV2',
-                      'disable_web_page_preview=True']
+        api_params = ["parse_mode=MarkdownV2",
+                      "disable_web_page_preview=True"]
         url = URL + "sendMessage?text={}&chat_id={}&"\
-            .format(url_encoded, chat_id) + '&'.join(api_params)
+            .format(url_encoded, chat_id) + "&".join(api_params)
         get_url(url)
 
 
@@ -196,27 +197,27 @@ def send_file(file_name, file_bytes, chat_id):
     with io.BytesIO() as buf:
         buf.write(file_bytes)
         buf.seek(0)
-        response = requests.post(URL + 'sendDocument',
-                                 data={'chat_id': chat_id},
-                                 files={'document': (file_name, buf)},
+        response = requests.post(URL + "sendDocument",
+                                 data={"chat_id": chat_id},
+                                 files={"document": (file_name, buf)},
                                  timeout=30)
     return response.status_code == 200
 
 
 def get_new_emails(imap_login, imap_password):
-    ix = imap_login.index('@')
+    ix = imap_login.index("@")
     EMAIL = imap_login
     PASSWORD = imap_password
-    SERVER = 'imap.' + imap_login[ix + 1:]
-    if imap_login[ix + 1:] == 'bk.ru':
-        SERVER = 'imap.mail.ru'
-    elif imap_login[ix + 1:] == 'phystech.edu':
-        SERVER = 'imap.gmail.com'
+    SERVER = "imap." + imap_login[ix + 1:]
+    if imap_login[ix + 1:] == "bk.ru":
+        SERVER = "imap.mail.ru"
+    elif imap_login[ix + 1:] == "phystech.edu":
+        SERVER = "imap.gmail.com"
     mail = imaplib.IMAP4_SSL(SERVER)
     mail.login(EMAIL, PASSWORD)
-    mail.select('inbox', readonly=False)
+    mail.select("inbox", readonly=False)
 
-    status, data = mail.search(None, 'UNSEEN')
+    status, data = mail.search(None, "UNSEEN")
     mail_ids = []
     for block in data:
         mail_ids += block.split()
@@ -224,70 +225,70 @@ def get_new_emails(imap_login, imap_password):
     result = []
 
     for i in mail_ids:
-        status, data = mail.fetch(i, '(RFC822)')
-        # the content data at the '(RFC822)' format comes on
+        status, data = mail.fetch(i, "(RFC822)")
+        # the content data at the "(RFC822)" format comes on
         # a list with a tuple with header, content, and the closing
-        # byte b')'
+        # byte b")"
         for response_part in data:
             if isinstance(response_part, tuple):
                 # we go for the content at its second element
                 # skipping the header at the first and the closing
                 # at the third:
                 message = email.message_from_bytes(response_part[1])
-                typ, data = mail.store(i, '+FLAGS', '\\Seen')
+                typ, data = mail.store(i, "+FLAGS", "\\Seen")
                 now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-                mail_from = decode_bytes(message['from'])
-                mail_subject = decode_bytes(message['subject'])
+                mail_from = decode_bytes(message["from"])
+                mail_subject = decode_bytes(message["subject"])
 
                 files_attached = []
-                mail_content = ''
+                mail_content = ""
 
                 if message.is_multipart():
                     for part in message.get_payload():
                         content_type = part.get_content_type()
-                        transfer_encoding = part['Content-Transfer-Encoding']
-                        logging.info('Message time:', now)
-                        logging.info('Content type:', content_type)
+                        transfer_encoding = part["Content-Transfer-Encoding"]
+                        logging.info("Message time:", now)
+                        logging.info("Content type:", content_type)
                         filename = part.get_filename()
-                        if content_type == 'text/plain':
+                        if content_type == "text/plain":
                             payload_bytes = part.get_payload(decode=True)
                             if payload_bytes and payload_bytes.strip():
-                                charset = part.get_content_charset('utf-8')
+                                charset = part.get_content_charset("utf-8")
                                 mail_content += payload_bytes\
-                                    .decode(charset, 'replace')
+                                    .decode(charset, "replace")
                             else:
-                                mail_content = 'No content'
-                        elif content_type == 'multipart/alternative':
+                                mail_content = "No content"
+                        elif content_type == "multipart/alternative":
                             for p in part.get_payload():
                                 p_type = p.get_content_type()
-                                logging.info('Message time:', now)
-                                logging.info('Multipart content type:',
-                                              p_type)
-                                if p_type == 'text/plain':
+                                logging.info("Message time:", now)
+                                logging.info("Multipart content type:",
+                                             p_type)
+                                if p_type == "text/plain":
                                     p_bytes = p.get_payload(decode=True)
-                                    charset = p.get_content_charset('utf-8')
+                                    charset = p.get_content_charset("utf-8")
                                     mail_content += p_bytes\
-                                        .decode(charset, 'replace')
-                        elif transfer_encoding == 'base64' and filename:
+                                        .decode(charset, "replace")
+                        elif transfer_encoding == "base64" and filename:
                             filename = decode_bytes(filename)
                             bytes_data = get_bytes(part)
                             files_attached += [(filename, bytes_data)]
                 else:
-                    logging.info('Message time:', now)
-                    logging.info('Not multipart!')
+                    logging.info("Message time:", now)
+                    logging.info("Not multipart!")
                     charset = message.get_charset()
                     if not charset:
-                        charset = 'utf-8'
+                        charset = "utf-8"
                     payload = message.get_payload(decode=True)
                     if payload:
-                        mail_content = payload.decode(charset, 'replace')
+                        mail_content = payload.decode(charset, "replace")
                     else:
-                        mail_content = 'No content'
+                        mail_content = "No content"
 
-                result += [{'from': mail_from, 'subj': mail_subject,
-                            'content': mail_content,
-                            'attachment': files_attached}]
+                result += [{"from": mail_from, "subj": mail_subject,
+                            "content": mail_content,
+                            "attachment": files_attached}]
     mail.close()
     return result
 
@@ -316,7 +317,7 @@ def handle_updates(grouped_updates):
                 current_chat.state = 0
                 current_chat.passwd = text
                 send_message(MESSAGE_OK, chat_id)
-            elif text == '/stop' and current_state == 0:
+            elif text == "/stop" and current_state == 0:
                 if current_chat:
                     current_chat.delete()
                 send_message(MESSAGE_STOP, chat_id)
@@ -347,14 +348,14 @@ def main():
                 c.delete()
             else:
                 for e in res:
-                    respond = MESSAGE_CONTENT.format(e['from'],
-                                                     e['subj'], e['content'])
+                    respond = MESSAGE_CONTENT.format(e["from"],
+                                                     e["subj"], e["content"])
 
                     send_message(respond, c.chat_id)
-                    for f in e['attachment']:
+                    for f in e["attachment"]:
                         send_file(f[0], f[1], c.chat_id)
         orm.commit()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
