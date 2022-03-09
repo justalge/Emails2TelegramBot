@@ -235,6 +235,7 @@ def get_new_emails(imap_login, imap_password):
                 # skipping the header at the first and the closing
                 # at the third:
                 message = email.message_from_bytes(response_part[1])
+                mes_content_type = message.get_content_type()
                 typ, data = mail.store(i, "+FLAGS", "\\Seen")
                 now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
@@ -274,7 +275,7 @@ def get_new_emails(imap_login, imap_password):
                             filename = decode_bytes(filename)
                             bytes_data = get_bytes(part)
                             files_attached += [(filename, bytes_data)]
-                else:
+                elif mes_content_type == "text/plain":
                     logging.info("Message time:", now)
                     logging.info("Not multipart!")
                     charset = message.get_charset()
@@ -285,6 +286,9 @@ def get_new_emails(imap_login, imap_password):
                         mail_content = payload.decode(charset, "replace")
                     else:
                         mail_content = "No content"
+                else:
+                    logging.info("Message time:", now)
+                    logging.info("Content type xxx:", mes_content_type)
 
                 result += [{"from": mail_from, "subj": mail_subject,
                             "content": mail_content,
