@@ -112,6 +112,8 @@ def make_markdown(text):
     linksCounter.link_to_num = False
     p = r"FuckBidenLink(.*)BidenIsFuckedLink"
     text = re.sub(p, linksCounter, text)
+    text = re.sub(r"[ \t\f]*(\r\n|\r|\n)", r"\n", text)
+    text = re.sub(r"\n{2,}", r"\n\n", text)
     return text
 
 
@@ -131,7 +133,7 @@ def get_bytes(part):
 
 
 def get_url(url):
-    response = requests.get(url, timeout=11)
+    response = requests.get(url, timeout=30)
     content = response.content.decode("utf8")
     return content
 
