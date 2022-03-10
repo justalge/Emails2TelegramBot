@@ -278,17 +278,16 @@ def get_new_emails(imap_login, imap_password):
                 # at the third:
                 message = email.message_from_bytes(response_part[1])
                 mes_content_type = message.get_content_type()
-                multipart = message.is_multipart()
                 typ, data = mail.store(i, "+FLAGS", "\\Seen")
                 now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                logger.info(f'{multipart} {now} {mes_content_type}')
+                logger.info(f'{now} {mes_content_type}')
 
                 mail_from = decode_bytes(message["from"])
                 mail_subject = decode_bytes(message["subject"])
 
                 files_attached = []
 
-                if multipart:
+                if message.is_multipart():
                     no_pl_txt = True
                     for part in message.get_payload():
                         contype, transfenc, fname = handle_part(part, now)
