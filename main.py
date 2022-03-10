@@ -76,7 +76,7 @@ def make_markdown(text):
     """Escape MD symbols and create MD hyperlinks"""
 
     MD_chars = r"_*[\]()~`>#+-=|{}.!"
-    URL_chars = r"-a-zA-Z0-9._~:/#@!$&'*+,;="  # all except "?"
+    URL_chars = r"-a-zA-Z0-9._~:/\#@!$&'*+,;=%"  # all except "?"
 
     class LinksCounter:
         def __init__(self, links_dict):
