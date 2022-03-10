@@ -130,7 +130,7 @@ def make_markdown(text):
     text = re.sub(p, linksCounter, text)
 
     # get rid of multiple linebreaks:
-    text = re.sub(r"[ \t\f{SPACE_FORMAT_chars}]*(\r\n|\r|\n)", r"\n", text)
+    text = re.sub(fr"[ \t\f{SPACE_FORMAT_chars}]*(\r\n|\r|\n)", r"\n", text)
     text = re.sub(r"(\r\n|\r|\n){2,}", r"\n\n", text)
     return text
 
