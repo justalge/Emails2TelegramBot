@@ -11,8 +11,27 @@ import urllib
 from collections import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
+from enum import IntEnum
 from pony import orm
 
+
+class NonWhiteSpace(IntEnum):
+    '''Joiners, non-joiners, and separators.
+    '''
+    CGJ = 0x34f  # Combining Grapheme Joiner
+    MVS = 0x180e  # Mongolian vowel separator
+    ZWSP = 0x200b  # Zero-width space
+    ZWJN = 0x200c  # Zero-width non-joiner
+    ZWJ = 0x200d  # Zero-width joiner
+    WJ = 0x2060  # Word joiner
+
+    # Byte Order Mark, formerly ZWNBSP (zero-width non-breaking space):
+    BOM = 0xfeff
+
+
+MARKDOWN_chars = r"_*[\]()~`>#+-=|{}.!"
+URL_chars = r"-a-zA-Z0-9._~:/\#@!$&'*+,;=%"  # all except "?"
+SPACE_FORMAT_chars = "".join(list(map(chr, [e.value for e in NonWhiteSpace])))
 
 load_dotenv()  # take environment variables from .env.
 
@@ -73,10 +92,7 @@ Subject: {1}
 
 
 def make_markdown(text):
-    """Escape MD symbols and create MD hyperlinks"""
-
-    MD_chars = r"_*[\]()~`>#+-=|{}.!"
-    URL_chars = r"-a-zA-Z0-9._~:/\#@!$&'*+,;=%"  # all except "?"
+    """Escape MARKDOWN symbols and create MARKDOWN hyperlinks"""
 
     class LinksCounter:
         def __init__(self, links_dict):
@@ -93,7 +109,7 @@ def make_markdown(text):
                 self.ix += 1
                 nice_url = self.links_dict[self.ix][0]
                 # escape markdown characters from url:
-                nice_url = re.sub(fr"([{MD_chars}])", r"\\\1", nice_url)
+                nice_url = re.sub(fr"([{MARKDOWN_chars}])", r"\\\1", nice_url)
                 full_url = self.links_dict[self.ix][0]\
                     + self.links_dict[self.ix][1]
                 return f"[{nice_url}]({full_url})" if len(nice_url) < 60\
@@ -106,14 +122,16 @@ def make_markdown(text):
     text = re.sub(link_pattern, linksCounter, text)
 
     # escape markdown characters:
-    text = re.sub(fr"([{MD_chars}])", r"\\\1", text)
+    text = re.sub(fr"([{MARKDOWN_chars}])", r"\\\1", text)
 
     # insert nice links:
     linksCounter.link_to_num = False
     p = r"FuckBidenLink(.*)BidenIsFuckedLink"
     text = re.sub(p, linksCounter, text)
-    text = re.sub(r"[ \t\f]*(\r\n|\r|\n)", r"\n", text)
-    text = re.sub(r"\n{2,}", r"\n\n", text)
+
+    # get rid of multiple linebreaks:
+    text = re.sub(r"[ \t\f{SPACE_FORMAT_chars}]*(\r\n|\r|\n)", r"\n", text)
+    text = re.sub(r"(\r\n|\r|\n){2,}", r"\n\n", text)
     return text
 
 
