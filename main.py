@@ -116,7 +116,7 @@ def make_markdown(text):
                     else f"[longURL]({full_url})"
 
     # get rid of ugly links:
-    link_pattern = fr"(http[s]?://[{URL_chars}]+)(\?[{URL_chars}]+)?"
+    link_pattern = fr"(http[s]?://[{URL_chars}]+)(\?[{URL_chars}]*)?"
     all_links = re.findall(link_pattern, text)
     linksCounter = LinksCounter(all_links)
     text = re.sub(link_pattern, linksCounter, text)
